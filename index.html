@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>My Tools Hub v2.2</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div class="hero-top">
+        <div>
+          <div class="eyebrow">TOOLS DASHBOARD</div>
+          <h1 id="pageTitle">My Tools</h1>
+          <p class="hero-sub" id="heroSubtitle">Tap any tile to open your tool.</p>
+        </div>
+        <button class="hero-search-btn" id="searchToggleBtn" aria-label="Search">⌕</button>
+      </div>
+
+      <div class="search-panel hidden" id="searchPanel">
+        <input id="searchInput" type="text" placeholder="Search tools, tags, descriptions..." />
+      </div>
+
+      <div class="category-strip" id="categoryTabs"></div>
+    </header>
+
+    <main class="content">
+      <section class="section-block">
+        <div class="section-head">
+          <h2>Pinned</h2>
+          <span id="pinnedCount">0</span>
+        </div>
+        <div class="tiles-grid pinned-grid" id="pinnedGrid"></div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-head">
+          <h2>All Tools</h2>
+          <span id="allCount">0</span>
+        </div>
+        <div class="tiles-grid" id="toolsGrid"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="overlay" id="overlay"></div>
+
+  <aside class="sheet drawer" id="drawer">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div>
+        <div class="sheet-title">Settings</div>
+        <div class="sheet-sub">Manage tools, sync and preferences.</div>
+      </div>
+      <button class="icon-plain" id="closeDrawerBtn">✕</button>
+    </div>
+
+    <div class="drawer-tabs">
+      <button class="drawer-tab active" data-panel="generalPanel">General</button>
+      <button class="drawer-tab" data-panel="toolsPanel">Tools</button>
+      <button class="drawer-tab" data-panel="categoriesPanel">Categories</button>
+      <button class="drawer-tab" data-panel="syncPanel">Sync</button>
+      <button class="drawer-tab" data-panel="backupPanel">Backup</button>
+    </div>
+
+    <div class="drawer-body">
+      <section class="panel active" id="generalPanel">
+        <div class="field">
+          <label>Device Name</label>
+          <input id="deviceNameInput" placeholder="e.g. iPhone / Office Mac" />
+        </div>
+        <div class="field">
+          <label>Default Open Mode</label>
+          <select id="openModeInput">
+            <option value="new_tab">Open in new tab</option>
+            <option value="same_tab">Open in same tab</option>
+          </select>
+        </div>
+        <div class="field inline-field">
+          <label class="switch"><input type="checkbox" id="remoteCheckInput" checked /> Check remote meta on page load</label>
+        </div>
+        <button class="primary-btn" id="saveGeneralBtn">Save General Settings</button>
+      </section>
+
+      <section class="panel" id="toolsPanel">
+        <div class="panel-note">Turn on Edit Mode from the floating menu, then tap a tile to edit it.</div>
+        <div class="manage-list" id="toolsManageList"></div>
+      </section>
+
+      <section class="panel" id="categoriesPanel">
+        <div class="field">
+          <label>New Category Name</label>
+          <input id="newCategoryName" placeholder="e.g. Finance" />
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label>Icon</label>
+            <input id="newCategoryIcon" placeholder="e.g. 💼" />
+          </div>
+          <div class="field">
+            <label>Color</label>
+            <input id="newCategoryColor" type="color" value="#5b6cff" />
+          </div>
+        </div>
+        <button class="primary-btn" id="addCategoryBtn">Add Category</button>
+        <div class="panel-note">Drag category items below to reorder the tab strip.</div>
+        <div class="manage-list" id="categoriesManageList"></div>
+      </section>
+
+      <section class="panel" id="syncPanel">
+        <div class="field">
+          <label>Google Apps Script Web App URL</label>
+          <input id="gasUrlInput" placeholder="https://script.google.com/macros/s/.../exec" />
+        </div>
+        <div class="field">
+          <label>Sync Token</label>
+          <input id="syncTokenInput" type="password" placeholder="Same as Script Properties: SYNC_TOKEN" />
+        </div>
+        <div class="two-col">
+          <button class="soft-btn" id="testConnectionBtn">Test / Check Meta</button>
+          <button class="primary-btn" id="saveSyncConfigBtn">Save Sync Config</button>
+        </div>
+        <div class="two-col top-gap">
+          <button class="soft-btn" id="pullBtn">Preview Pull</button>
+          <button class="primary-btn" id="pushBtn">Preview Push</button>
+        </div>
+        <div class="panel-note">
+          Push is blocked when the remote version is newer, and the server also validates token and version before writing.[web:76][web:104]
+        </div>
+      </section>
+
+      <section class="panel" id="backupPanel">
+        <div class="two-col">
+          <button class="soft-btn" id="exportJsonBtn">Export JSON</button>
+          <button class="soft-btn" id="importJsonBtn">Import JSON</button>
+        </div>
+        <input id="importJsonFile" type="file" accept=".json,application/json" class="hidden" />
+      </section>
+    </div>
+  </aside>
+
+  <div class="sheet modal" id="toolModal">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div>
+        <div class="sheet-title" id="toolModalTitle">Add Tool</div>
+        <div class="sheet-sub">Create or edit a tile.</div>
+      </div>
+      <button class="icon-plain" id="closeModalBtn">✕</button>
+    </div>
+
+    <div class="drawer-body">
+      <input type="hidden" id="toolIdInput" />
+      <div class="field">
+        <label>Title</label>
+        <input id="toolTitleInput" placeholder="Tool name" />
+      </div>
+      <div class="field">
+        <label>URL</label>
+        <input id="toolUrlInput" placeholder="https://..." />
+      </div>
+      <div class="two-col">
+        <div class="field">
+          <label>Category</label>
+          <select id="toolCategoryInput"></select>
+        </div>
+        <div class="field">
+          <label>Icon Emoji</label>
+          <input id="toolIconInput" placeholder="e.g. 🌐" />
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="field">
+          <label>Tile Color</label>
+          <input id="toolColorInput" type="color" value="#5b6cff" />
+        </div>
+        <div class="field">
+          <label>Open Mode</label>
+          <select id="toolOpenModeInput">
+            <option value="new_tab">Open in new tab</option>
+            <option value="same_tab">Open in same tab</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="toolDescInput" placeholder="Short note about this tool"></textarea>
+      </div>
+      <div class="field">
+        <label>Tags</label>
+        <input id="toolTagsInput" placeholder="e.g. daily, admin, hr" />
+      </div>
+      <div class="two-col">
+        <div class="field inline-field">
+          <label class="switch"><input type="checkbox" id="toolPinnedInput" /> Pinned</label>
+        </div>
+        <div class="field inline-field">
+          <label class="switch"><input type="checkbox" id="toolArchivedInput" /> Archived</label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="danger-btn hidden" id="deleteToolBtn">Delete</button>
+        <button class="soft-btn" id="cancelModalBtn">Cancel</button>
+        <button class="primary-btn" id="saveToolBtn">Save Tool</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet modal" id="diffModal">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <div>
+        <div class="sheet-title" id="diffTitle">Sync Preview</div>
+        <div class="sheet-sub" id="diffSubtitle">Compare local and remote data before apply.</div>
+      </div>
+      <button class="icon-plain" id="closeDiffBtn">✕</button>
+    </div>
+
+    <div class="drawer-body">
+      <div id="diffWarning" class="panel-note"></div>
+      <div class="summary-box" id="diffSummary"></div>
+      <div id="diffTables"></div>
+      <div class="modal-actions">
+        <button class="soft-btn" id="cancelDiffBtn">Cancel</button>
+        <button class="primary-btn" id="confirmDiffBtn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fab-wrap">
+    <div class="fab-menu hidden" id="fabMenu">
+      <button class="fab-action" id="fabAddBtn">+ Add Tool</button>
+      <button class="fab-action" id="fabEditModeBtn">Edit Mode: Off</button>
+      <button class="fab-action" id="fabDescBtn">Descriptions: On</button>
+      <button class="fab-action" id="fabPinOnlyBtn">Pinned Only: Off</button>
+      <button class="fab-action" id="fabSyncBtn">Sync</button>
+      <button class="fab-action" id="fabSettingsBtn">Settings</button>
+    </div>
+    <button class="fab-main" id="fabMainBtn" aria-label="Open actions">☰</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
