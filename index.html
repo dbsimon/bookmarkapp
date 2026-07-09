@@ -17,8 +17,20 @@
         </div>
         <div class="hero-actions">
           <button class="hero-icon-btn" id="themeToggleBtn" aria-label="Toggle dark mode" title="Toggle dark mode">
-            <svg id="themeIconSun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-            <svg id="themeIconMoon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg id="themeIconSun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"/>
+              <line x1="12" y1="1" x2="12" y2="3"/>
+              <line x1="12" y1="21" x2="12" y2="23"/>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+              <line x1="1" y1="12" x2="3" y2="12"/>
+              <line x1="21" y1="12" x2="23" y2="12"/>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+            <svg id="themeIconMoon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
           </button>
           <button class="hero-search-btn" id="searchToggleBtn" aria-label="Search">⌕</button>
         </div>
@@ -165,17 +177,34 @@
 
     <div class="drawer-body">
       <input type="hidden" id="toolIdInput" />
+
       <div class="field">
         <label>URL</label>
         <div class="url-input-wrap">
-          <input id="toolUrlInput" placeholder="https://... (paste URL to auto-fill title)" />
-          <span class="url-fetch-status" id="urlFetchStatus"></span>
+          <input id="toolUrlInput" placeholder="https://... (paste URL to auto-fill preview)" />
+          <button type="button" class="icon-plain preview-refresh-btn" id="previewRefreshBtn" aria-label="Refresh preview">↻</button>
+        </div>
+        <span class="url-fetch-status" id="urlFetchStatus"></span>
+      </div>
+
+      <div class="link-preview hidden" id="linkPreviewCard">
+        <div class="link-preview-media-wrap">
+          <img id="linkPreviewImage" class="link-preview-image hidden" alt="Link preview image" />
+          <div id="linkPreviewFallback" class="link-preview-fallback">🌐</div>
+        </div>
+        <div class="link-preview-body">
+          <div id="linkPreviewSite" class="link-preview-site"></div>
+          <div id="linkPreviewTitle" class="link-preview-title"></div>
+          <div id="linkPreviewDesc" class="link-preview-desc"></div>
+          <div id="linkPreviewUrl" class="link-preview-url"></div>
         </div>
       </div>
+
       <div class="field">
         <label>Title</label>
         <input id="toolTitleInput" placeholder="Tool name" />
       </div>
+
       <div class="two-col">
         <div class="field">
           <label>Category</label>
@@ -186,6 +215,7 @@
           <input id="toolIconInput" placeholder="e.g. 🌐" />
         </div>
       </div>
+
       <div class="two-col">
         <div class="field">
           <label>Tile Color</label>
@@ -199,14 +229,17 @@
           </select>
         </div>
       </div>
+
       <div class="field">
         <label>Description</label>
         <textarea id="toolDescInput" placeholder="Short note about this tool"></textarea>
       </div>
+
       <div class="field">
         <label>Tags</label>
         <input id="toolTagsInput" placeholder="e.g. daily, admin, hr" />
       </div>
+
       <div class="two-col">
         <div class="field inline-field">
           <label class="switch"><input type="checkbox" id="toolPinnedInput" /> Pinned</label>
@@ -215,6 +248,7 @@
           <label class="switch"><input type="checkbox" id="toolArchivedInput" /> Archived</label>
         </div>
       </div>
+
       <div class="modal-actions">
         <button class="danger-btn hidden" id="deleteToolBtn">Delete</button>
         <button class="soft-btn" id="cancelModalBtn">Cancel</button>
