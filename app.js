@@ -16,7 +16,8 @@ const DEFAULT_DATA = {
     openLinksDefault: "new_tab",
     checkRemoteOnLoad: true,
     previewAutofillDescription: true,
-    previewAutofillImage: false
+    previewAutofillImage: false,
+    dashboardTitle: "My Tools"
   },
   uiState: {
     showDescriptions: true,
@@ -96,6 +97,8 @@ const els = {
   toolArchivedInput: document.getElementById("toolArchivedInput"),
 
   toolsManageList: document.getElementById("toolsManageList"),
+  pageTitle: document.getElementById("pageTitle"),
+  dashboardTitleInput: document.getElementById("dashboardTitleInput"),
   categoriesManageList: document.getElementById("categoriesManageList"),
 
   deviceNameInput: document.getElementById("deviceNameInput"),
@@ -147,6 +150,7 @@ function init() {
   initTheme();
   bindEvents();
   fillSettings();
+  updateDashboardTitle();
   renderAll();
   if (state.appSettings.checkRemoteOnLoad && state.appSettings.gasWebAppUrl) {
     lightweightRemoteCheck();
@@ -171,6 +175,16 @@ function applyTheme(theme) {
 function toggleTheme() {
   const current = document.documentElement.getAttribute("data-theme") || "light";
   applyTheme(current === "dark" ? "light" : "dark");
+}
+
+function getDashboardTitle() {
+  return (state.appSettings.dashboardTitle || "My Tools").trim() || "My Tools";
+}
+
+function updateDashboardTitle() {
+  const title = getDashboardTitle();
+  if (els.pageTitle) els.pageTitle.textContent = title;
+  document.title = `${title} Hub v2.2`;
 }
 
 async function fetchAndRenderLinkPreview(url, { autofill = false, force = false } = {}) {
@@ -587,6 +601,7 @@ function ensureStateShape() {
 
   state.appSettings.openLinksDefault ||= "new_tab";
   state.appSettings.syncToken ||= "";
+  state.appSettings.dashboardTitle ||= "My Tools";
   state.appSettings.checkRemoteOnLoad = state.appSettings.checkRemoteOnLoad !== false;
   state.appSettings.previewAutofillDescription = state.appSettings.previewAutofillDescription !== false;
   state.appSettings.previewAutofillImage = !!state.appSettings.previewAutofillImage;
@@ -620,6 +635,7 @@ function ensureStateShape() {
 }
 
 function renderAll() {
+  updateDashboardTitle();
   renderCategoryTabs();
   renderToolCategoryOptions();
   renderPinned();
@@ -868,6 +884,7 @@ function renderToolCategoryOptions() {
 }
 
 function fillSettings() {
+  els.dashboardTitleInput.value = getDashboardTitle();
   els.deviceNameInput.value = state.appSettings.deviceName || "";
   els.openModeInput.value = state.appSettings.openLinksDefault || "new_tab";
   els.remoteCheckInput.checked = state.appSettings.checkRemoteOnLoad !== false;
@@ -929,6 +946,22 @@ function closeFabMenu() {
 function openDrawer() {
   els.drawer.classList.add("open");
   els.overlay.classList.add("show");
+}
+
+function openPanel(panelId) {
+  els.drawerTabs.forEach(x => x.classList.remove("active"));
+  els.panels.forEach(x => x.classList.remove("active"));
+
+  const tab = els.drawerTabs.find(x => x.dataset.panel === panelId);
+  if (tab) tab.classList.add("active");
+
+  const panel = document.getElementById(panelId);
+  if (panel) panel.classList.add("active");
+}
+
+function openSyncPanel() {
+  openDrawer();
+  openPanel("syncPanel");
 }
 
 function closeDrawer() {
@@ -1172,6 +1205,7 @@ function deleteCategory(id) {
 }
 
 function saveGeneralSettings() {
+  state.appSettings.dashboardTitle = (els.dashboardTitleInput.value || "").trim() || "My Tools";
   state.appSettings.deviceName = els.deviceNameInput.value.trim();
   state.appSettings.openLinksDefault = els.openModeInput.value;
   state.appSettings.checkRemoteOnLoad = els.remoteCheckInput.checked;
