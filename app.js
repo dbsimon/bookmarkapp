@@ -506,7 +506,39 @@ function bindEvents() {
   els.fabMainBtn.onclick = toggleFabMenu;
   els.fabAddBtn.onclick = () => { closeFabMenu(); openToolModal(); };
   els.fabSettingsBtn.onclick = () => { closeFabMenu(); openDrawer(); };
-  els.fabSyncBtn.onclick = async () => { closeFabMenu(); await lightweightRemoteCheck(); };
+  els.fabSyncBtn.onclick = async () => {
+  closeFabMenu();
+
+  const originalLabel = els.fabSyncBtn.textContent;
+  els.fabSyncBtn.textContent = "Syncing...";
+  els.fabSyncBtn.disabled = true;
+
+  try {
+    if (!state.appSettings.gasWebAppUrl) {
+      alert("Please set the Apps Script Web App URL first.");
+      return;
+    }
+
+    await lightweightRemoteCheck();
+
+    els.fabSyncBtn.textContent = "Sync Ready";
+    setTimeout(() => {
+      els.fabSyncBtn.textContent = originalLabel;
+      els.fabSyncBtn.disabled = false;
+    }, 1600);
+  } catch (err) {
+    els.fabSyncBtn.textContent = "Sync Failed";
+    setTimeout(() => {
+      els.fabSyncBtn.textContent = originalLabel;
+      els.fabSyncBtn.disabled = false;
+    }, 1800);
+    throw err;
+  } finally {
+    if (els.fabSyncBtn.disabled) {
+      els.fabSyncBtn.disabled = false;
+    }
+  }
+};
   els.fabEditModeBtn.onclick = () => {
     state.uiState.editMode = !state.uiState.editMode;
     saveState();
