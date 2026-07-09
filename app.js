@@ -40,17 +40,22 @@ let pinnedSortable = null;
 let toolsSortable = null;
 let categorySortable = null;
 let diffActionContext = null;
+let urlFetchTimer = null;
 
 const els = {
   searchToggleBtn: document.getElementById('searchToggleBtn'),
   searchPanel: document.getElementById('searchPanel'),
   searchInput: document.getElementById('searchInput'),
+  searchClearBtn: document.getElementById('searchClearBtn'),
   categoryTabs: document.getElementById('categoryTabs'),
   pinnedGrid: document.getElementById('pinnedGrid'),
   toolsGrid: document.getElementById('toolsGrid'),
   pinnedCount: document.getElementById('pinnedCount'),
   allCount: document.getElementById('allCount'),
   overlay: document.getElementById('overlay'),
+  themeToggleBtn: document.getElementById('themeToggleBtn'),
+  themeIconSun: document.getElementById('themeIconSun'),
+  themeIconMoon: document.getElementById('themeIconMoon'),
 
   drawer: document.getElementById('drawer'),
   closeDrawerBtn: document.getElementById('closeDrawerBtn'),
@@ -67,6 +72,7 @@ const els = {
   toolIdInput: document.getElementById('toolIdInput'),
   toolTitleInput: document.getElementById('toolTitleInput'),
   toolUrlInput: document.getElementById('toolUrlInput'),
+  urlFetchStatus: document.getElementById('urlFetchStatus'),
   toolCategoryInput: document.getElementById('toolCategoryInput'),
   toolIconInput: document.getElementById('toolIconInput'),
   toolColorInput: document.getElementById('toolColorInput'),
@@ -124,6 +130,7 @@ init();
 
 function init(){
   ensureStateShape();
+  initTheme();
   bindEvents();
   fillSettings();
   renderAll();
@@ -132,12 +139,105 @@ function init(){
   }
 }
 
+// ─── DARK MODE ────────────────────────────────────────────────────────────────
+function initTheme(){
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  applyTheme(theme);
+}
+
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+  const isDark = theme === 'dark';
+  els.themeIconSun.style.display = isDark ? 'none' : 'block';
+  els.themeIconMoon.style.display = isDark ? 'block' : 'none';
+}
+
+function toggleTheme(){
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+// ─── AUTO-FETCH URL TITLE ─────────────────────────────────────────────────────
+async function fetchTitleFromUrl(url){
+  if(!url || !isProbablyUrl(url)) return;
+  if(els.toolTitleInput.value.trim()) return; // don't overwrite existing title
+
+  els.urlFetchStatus.textContent = '⏳ Fetching title...';
+  els.urlFetchStatus.className = 'url-fetch-status fetching';
+
+  try{
+    // Use allorigins.win as a CORS proxy to fetch the page HTML
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const res = await fetch(proxyUrl);
+    if(!res.ok) throw new Error('Fetch failed');
+    const data = await res.json();
+    const html = data.contents || '';
+    // Extract <title> tag
+    const match = html.match(/<title[^>]*>([^<]{1,200})<\/title>/i);
+    if(match && match[1]){
+      const title = match[1].trim().replace(/\s+/g,' ');
+      if(title && !els.toolTitleInput.value.trim()){
+        els.toolTitleInput.value = title;
+        els.urlFetchStatus.textContent = '✓ Title filled';
+        els.urlFetchStatus.className = 'url-fetch-status success';
+        setTimeout(() => { els.urlFetchStatus.textContent = ''; els.urlFetchStatus.className = 'url-fetch-status'; }, 2500);
+        return;
+      }
+    }
+    throw new Error('No title found');
+  }catch(e){
+    els.urlFetchStatus.textContent = '— Could not auto-fill';
+    els.urlFetchStatus.className = 'url-fetch-status error';
+    setTimeout(() => { els.urlFetchStatus.textContent = ''; els.urlFetchStatus.className = 'url-fetch-status'; }, 2500);
+  }
+}
+
 function bindEvents(){
+  // Theme toggle
+  els.themeToggleBtn.onclick = toggleTheme;
+
+  // Search
   els.searchToggleBtn.onclick = () => {
     els.searchPanel.classList.toggle('hidden');
     if(!els.searchPanel.classList.contains('hidden')) els.searchInput.focus();
+    else {
+      els.searchInput.value = '';
+      els.searchClearBtn.classList.add('hidden');
+      renderAll();
+    }
   };
-  els.searchInput.oninput = renderAll;
+  els.searchInput.oninput = () => {
+    const hasValue = els.searchInput.value.length > 0;
+    els.searchClearBtn.classList.toggle('hidden', !hasValue);
+    renderAll();
+  };
+  els.searchClearBtn.onclick = () => {
+    els.searchInput.value = '';
+    els.searchClearBtn.classList.add('hidden');
+    els.searchInput.focus();
+    renderAll();
+  };
+
+  // URL auto-fetch
+  els.toolUrlInput.addEventListener('input', () => {
+    clearTimeout(urlFetchTimer);
+    const url = els.toolUrlInput.value.trim();
+    if(isProbablyUrl(url) && !els.toolTitleInput.value.trim()){
+      urlFetchTimer = setTimeout(() => fetchTitleFromUrl(url), 800);
+    }
+  });
+  els.toolUrlInput.addEventListener('paste', (e) => {
+    clearTimeout(urlFetchTimer);
+    setTimeout(() => {
+      const url = els.toolUrlInput.value.trim();
+      if(isProbablyUrl(url) && !els.toolTitleInput.value.trim()){
+        fetchTitleFromUrl(url);
+      }
+    }, 100);
+  });
 
   els.overlay.onclick = () => {
     closeDrawer();
@@ -302,20 +402,29 @@ function renderCategoryTabs(){
 }
 
 function renderPinned(){
+  const keyword = (els.searchInput.value || '').trim().toLowerCase();
   let list = getFilteredTools().filter(t => t.pinned && !t.isArchived).sort(sortTools);
   els.pinnedCount.textContent = list.length;
-  els.pinnedGrid.innerHTML = list.length ? list.map(t => renderTile(t, true)).join('') : `<div class="empty-state">No pinned tools in this view.</div>`;
+  els.pinnedGrid.innerHTML = list.length ? list.map(t => renderTile(t, true, keyword)).join('') : `<div class="empty-state">No pinned tools in this view.</div>`;
   bindTileEvents(els.pinnedGrid);
 }
 
 function renderTools(){
+  const keyword = (els.searchInput.value || '').trim().toLowerCase();
   let list = getFilteredTools().filter(t => !(t.pinned && !t.isArchived)).sort(sortTools);
   els.allCount.textContent = list.length;
-  els.toolsGrid.innerHTML = list.length ? list.map(t => renderTile(t, false)).join('') : `<div class="empty-state">No tools found.</div>`;
+  els.toolsGrid.innerHTML = list.length ? list.map(t => renderTile(t, false, keyword)).join('') : `<div class="empty-state">No tools found.</div>`;
   bindTileEvents(els.toolsGrid);
 }
 
-function renderTile(tool, pinned=false){
+function highlightText(text, keyword){
+  if(!keyword) return escapeHtml(text);
+  const escaped = escapeHtml(text);
+  const escapedKeyword = escapeHtml(keyword).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return escaped.replace(new RegExp(`(${escapedKeyword})`, 'gi'), '<mark class="search-highlight">$1</mark>');
+}
+
+function renderTile(tool, pinned=false, keyword=''){
   const cat = getCategory(tool.categoryId);
   const [a,b] = gradientPair(tool.color || cat?.color || '#5b6cff');
   const showDesc = state.uiState.showDescriptions && tool.description;
@@ -332,12 +441,12 @@ function renderTile(tool, pinned=false){
       </div>
 
       <div class="tile-body">
-        <div class="tile-title">${escapeHtml(tool.title || 'Untitled')}</div>
+        <div class="tile-title">${highlightText(tool.title || 'Untitled', keyword)}</div>
         <div class="tile-meta">
           <span class="tile-chip">${escapeHtml(cat?.name || 'Uncategorized')}</span>
           ${(tool.tags || []).slice(0,2).map(tag => `<span class="tile-chip">#${escapeHtml(tag)}</span>`).join('')}
         </div>
-        ${showDesc ? `<div class="tile-desc">${escapeHtml(tool.description)}</div>` : ``}
+        ${showDesc ? `<div class="tile-desc">${highlightText(tool.description, keyword)}</div>` : ``}
       </div>
     </button>
   `;
@@ -551,6 +660,9 @@ function closeDrawer(){
 function openToolModal(id=null){
   editingToolId = id;
   renderToolCategoryOptions();
+  // Reset fetch status
+  els.urlFetchStatus.textContent = '';
+  els.urlFetchStatus.className = 'url-fetch-status';
   if(id){
     const t = state.tools.find(x => x.id === id);
     if(!t) return;
