@@ -150,14 +150,18 @@
           <button class="soft-btn" id="testConnectionBtn">Test / Check Meta</button>
           <button class="primary-btn" id="saveSyncConfigBtn">Save Sync Config</button>
         </div>
-        <div class="two-col top-gap">
-          <button class="soft-btn" id="pullBtn">Preview Pull</button>
-          <button class="primary-btn" id="pushBtn">Preview Push</button>
-        </div>
-        <div class="panel-note">
-          Push is blocked when the remote version is newer, and the server also validates token and version before writing.
-        </div>
-      </section>
+       <div class="two-col top-gap">
+  <button class="soft-btn" id="pullBtn">Preview Pull</button>
+  <button class="primary-btn" id="pushBtn">Preview Push</button>
+</div>
+
+<div class="panel-note top-gap" id="syncStatusBox">
+  Status: Idle.
+</div>
+
+<div class="panel-note">
+  Push is blocked when the remote version is newer, and the server also validates token and version before writing.
+</div>
 
       <section class="panel" id="backupPanel">
         <div class="two-col">

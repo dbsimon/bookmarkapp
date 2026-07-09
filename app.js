@@ -16,8 +16,7 @@ const DEFAULT_DATA = {
     openLinksDefault: "new_tab",
     checkRemoteOnLoad: true,
     previewAutofillDescription: true,
-    previewAutofillImage: false,
-    dashboardTitle: "My Tools"
+    previewAutofillImage: false
   },
   uiState: {
     showDescriptions: true,
@@ -97,8 +96,6 @@ const els = {
   toolArchivedInput: document.getElementById("toolArchivedInput"),
 
   toolsManageList: document.getElementById("toolsManageList"),
-  pageTitle: document.getElementById("pageTitle"),
-  dashboardTitleInput: document.getElementById("dashboardTitleInput"),
   categoriesManageList: document.getElementById("categoriesManageList"),
 
   deviceNameInput: document.getElementById("deviceNameInput"),
@@ -143,14 +140,119 @@ const els = {
 };
 
 init();
+function getSyncBadgeLabel() {
+  const status = state.syncMeta.lastSyncStatus || "idle";
+  const labels = {
+    idle: "Sync",
+    checking: "Sync • Checking",
+    pulling: "Sync • Pulling",
+    pushing: "Sync • Pushing",
+    pulled: "Sync ✓ Pulled",
+    pushed: "Sync ✓ Synced",
+    failed: "Sync ✕ Failed"
+  };
+  return labels[status] || "Sync";
+}
 
+function showSyncToast(message, type = "info") {
+  let toast = document.getElementById("syncToastBadge");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "syncToastBadge";
+    document.body.appendChild(toast);
+  }
+
+  const palette = {
+    info: "#334155",
+    success: "#16a34a",
+    error: "#dc2626"
+  };
+
+  toast.textContent = message;
+  toast.style.position = "fixed";
+  toast.style.right = "18px";
+  toast.style.bottom = "96px";
+  toast.style.zIndex = "9999";
+  toast.style.padding = "10px 14px";
+  toast.style.borderRadius = "999px";
+  toast.style.color = "#fff";
+  toast.style.fontSize = "13px";
+  toast.style.fontWeight = "700";
+  toast.style.boxShadow = "0 8px 24px rgba(0,0,0,.18)";
+  toast.style.background = palette[type] || palette.info;
+  toast.style.opacity = "1";
+  toast.style.transition = "opacity .2s ease";
+
+  clearTimeout(showSyncToast._timer);
+  showSyncToast._timer = setTimeout(() => {
+    toast.style.opacity = "0";
+  }, 2200);
+}
+
+function setSyncBadge(status, message = "") {
+  state.syncMeta.lastSyncStatus = status;
+  state.syncMeta.lastSyncMessage = message;
+  saveState(false);
+  renderFabLabels();
+
+  if (message) {
+    const toastType =
+      status === "failed" ? "error" :
+      status === "pulled" || status === "pushed" ? "success" :
+      "info";
+
+    showSyncToast(message, toastType);
+  }
+}
+
+async function runFloatingSync() {
+  const base = state.appSettings.gasWebAppUrl;
+  const token = (state.appSettings.syncToken || "").trim();
+
+  if (!base) {
+    setSyncBadge("failed", "Please save the Apps Script Web App URL first.");
+    return;
+  }
+
+  setSyncBadge("checking", "Checking remote...");
+
+  const remote = await fetchRemoteBundle();
+  if (!remote) {
+    setSyncBadge("failed", "Unable to reach remote.");
+    return;
+  }
+
+  const remoteVersion = remote.meta?.version || "";
+  const localVersion =
+    state.syncMeta.lastLocalChangeAt || state.syncMeta.lastLocalSaveAt || "";
+
+  if (remoteVersion && localVersion && remoteVersion > localVersion) {
+    setSyncBadge("pulling", "Remote is newer. Pulling latest data...");
+    applyPull(remote);
+    setSyncBadge("pulled", "Latest data pulled.");
+  } else {
+    if (!token) {
+      setSyncBadge("failed", "Sync Token is missing.");
+      return;
+    }
+
+    setSyncBadge("pushing", "Pushing local changes...");
+    await performPush();
+    setSyncBadge("pushed", "Sync completed.");
+  }
+
+  setTimeout(() => {
+    state.syncMeta.lastSyncStatus = "idle";
+    saveState(false);
+    renderFabLabels();
+  }, 2400);
+}
 function init() {
   ensureStateShape();
   linkPreviewCache = state.linkPreviewCache || {};
   initTheme();
   bindEvents();
   fillSettings();
-  updateDashboardTitle();
   renderAll();
   if (state.appSettings.checkRemoteOnLoad && state.appSettings.gasWebAppUrl) {
     lightweightRemoteCheck();
@@ -175,16 +277,6 @@ function applyTheme(theme) {
 function toggleTheme() {
   const current = document.documentElement.getAttribute("data-theme") || "light";
   applyTheme(current === "dark" ? "light" : "dark");
-}
-
-function getDashboardTitle() {
-  return (state.appSettings.dashboardTitle || "My Tools").trim() || "My Tools";
-}
-
-function updateDashboardTitle() {
-  const title = getDashboardTitle();
-  if (els.pageTitle) els.pageTitle.textContent = title;
-  document.title = `${title} Hub v2.2`;
 }
 
 async function fetchAndRenderLinkPreview(url, { autofill = false, force = false } = {}) {
@@ -500,7 +592,10 @@ function bindEvents() {
   els.saveGeneralBtn.onclick = saveGeneralSettings;
   els.addCategoryBtn.onclick = addCategory;
   els.saveSyncConfigBtn.onclick = saveSyncConfig;
-  els.testConnectionBtn.onclick = lightweightRemoteCheck;
+  els.testConnectionBtn.onclick = async () => {
+    openSyncPanel();
+    await lightweightRemoteCheck();
+  };
   els.pullBtn.onclick = previewPullFromRemote;
   els.pushBtn.onclick = previewPushToRemote;
 
@@ -520,38 +615,9 @@ function bindEvents() {
   els.fabMainBtn.onclick = toggleFabMenu;
   els.fabAddBtn.onclick = () => { closeFabMenu(); openToolModal(); };
   els.fabSettingsBtn.onclick = () => { closeFabMenu(); openDrawer(); };
-  els.fabSyncBtn.onclick = async () => {
+els.fabSyncBtn.onclick = async () => {
   closeFabMenu();
-
-  const originalLabel = els.fabSyncBtn.textContent;
-  els.fabSyncBtn.textContent = "Syncing...";
-  els.fabSyncBtn.disabled = true;
-
-  try {
-    if (!state.appSettings.gasWebAppUrl) {
-      alert("Please set the Apps Script Web App URL first.");
-      return;
-    }
-
-    await lightweightRemoteCheck();
-
-    els.fabSyncBtn.textContent = "Sync Ready";
-    setTimeout(() => {
-      els.fabSyncBtn.textContent = originalLabel;
-      els.fabSyncBtn.disabled = false;
-    }, 1600);
-  } catch (err) {
-    els.fabSyncBtn.textContent = "Sync Failed";
-    setTimeout(() => {
-      els.fabSyncBtn.textContent = originalLabel;
-      els.fabSyncBtn.disabled = false;
-    }, 1800);
-    throw err;
-  } finally {
-    if (els.fabSyncBtn.disabled) {
-      els.fabSyncBtn.disabled = false;
-    }
-  }
+  await runFloatingSync();
 };
   els.fabEditModeBtn.onclick = () => {
     state.uiState.editMode = !state.uiState.editMode;
@@ -601,7 +667,6 @@ function ensureStateShape() {
 
   state.appSettings.openLinksDefault ||= "new_tab";
   state.appSettings.syncToken ||= "";
-  state.appSettings.dashboardTitle ||= "My Tools";
   state.appSettings.checkRemoteOnLoad = state.appSettings.checkRemoteOnLoad !== false;
   state.appSettings.previewAutofillDescription = state.appSettings.previewAutofillDescription !== false;
   state.appSettings.previewAutofillImage = !!state.appSettings.previewAutofillImage;
@@ -635,7 +700,6 @@ function ensureStateShape() {
 }
 
 function renderAll() {
-  updateDashboardTitle();
   renderCategoryTabs();
   renderToolCategoryOptions();
   renderPinned();
@@ -651,6 +715,8 @@ function renderFabLabels() {
   els.fabEditModeBtn.textContent = `Edit Mode: ${state.uiState.editMode ? "On" : "Off"}`;
   els.fabDescBtn.textContent = `Descriptions: ${state.uiState.showDescriptions ? "On" : "Off"}`;
   els.fabPinOnlyBtn.textContent = `Pinned Only: ${state.uiState.pinnedOnlyQuickFilter ? "On" : "Off"}`;
+  els.fabSyncBtn.textContent = getSyncBadgeLabel();
+  els.fabSyncBtn.disabled = ["checking", "pulling", "pushing"].includes(state.syncMeta.lastSyncStatus);
 }
 
 function renderCategoryTabs() {
@@ -884,7 +950,6 @@ function renderToolCategoryOptions() {
 }
 
 function fillSettings() {
-  els.dashboardTitleInput.value = getDashboardTitle();
   els.deviceNameInput.value = state.appSettings.deviceName || "";
   els.openModeInput.value = state.appSettings.openLinksDefault || "new_tab";
   els.remoteCheckInput.checked = state.appSettings.checkRemoteOnLoad !== false;
@@ -948,6 +1013,7 @@ function openDrawer() {
   els.overlay.classList.add("show");
 }
 
+
 function openPanel(panelId) {
   els.drawerTabs.forEach(x => x.classList.remove("active"));
   els.panels.forEach(x => x.classList.remove("active"));
@@ -962,6 +1028,40 @@ function openPanel(panelId) {
 function openSyncPanel() {
   openDrawer();
   openPanel("syncPanel");
+}
+
+function ensureSyncStatusBox() {
+  if (els.syncStatusBox && document.body.contains(els.syncStatusBox)) return els.syncStatusBox;
+
+  const panel = document.getElementById("syncPanel");
+  if (!panel) return null;
+
+  let box = panel.querySelector("#syncStatusBox");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "syncStatusBox";
+    box.className = "panel-note top-gap";
+    box.textContent = "Status: Idle.";
+
+    const warning = [...panel.querySelectorAll(".panel-note")]
+      .find(el => (el.textContent || "").includes("Push is blocked"));
+
+    if (warning && warning.parentNode) {
+      warning.parentNode.insertBefore(box, warning);
+    } else {
+      panel.appendChild(box);
+    }
+  }
+
+  els.syncStatusBox = box;
+  return box;
+}
+
+function setSyncStatus(message, type = "") {
+  const box = ensureSyncStatusBox();
+  if (!box) return;
+  box.textContent = `Status: ${message}`;
+  box.className = `panel-note top-gap ${type}`.trim();
 }
 
 function closeDrawer() {
@@ -1205,7 +1305,6 @@ function deleteCategory(id) {
 }
 
 function saveGeneralSettings() {
-  state.appSettings.dashboardTitle = (els.dashboardTitleInput.value || "").trim() || "My Tools";
   state.appSettings.deviceName = els.deviceNameInput.value.trim();
   state.appSettings.openLinksDefault = els.openModeInput.value;
   state.appSettings.checkRemoteOnLoad = els.remoteCheckInput.checked;
@@ -1224,14 +1323,18 @@ function saveSyncConfig() {
 async function lightweightRemoteCheck() {
   const base = state.appSettings.gasWebAppUrl || els.gasUrlInput.value.trim();
   if (!base) {
+    setSyncStatus("Please set the Apps Script Web App URL first.", "error");
     alert("Please set the Apps Script Web App URL first.");
     return;
   }
 
   try {
+    setSyncStatus("Checking remote connection...", "fetching");
+
     const url = `${base}${base.includes("?") ? "&" : "?"}action=meta`;
     const res = await fetch(url, { method: "GET", redirect: "follow" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || "Remote check failed.");
 
@@ -1239,7 +1342,13 @@ async function lightweightRemoteCheck() {
     state.syncMeta.lastRemoteVersion = data.meta?.version || "";
     state.syncMeta.lastSyncStatus = "checked";
     saveState();
+
+    const versionText = data.meta?.version ? ` Remote version: ${data.meta.version}.` : "";
+    setSyncStatus(`Connection OK.${versionText}`, "success");
   } catch (err) {
+    state.syncMeta.lastSyncStatus = "failed";
+    saveState();
+    setSyncStatus(`Remote check failed: ${err.message}`, "error");
     alert(`Remote check failed: ${err.message}`);
   }
 }
