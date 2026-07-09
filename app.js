@@ -162,6 +162,116 @@ function showSyncToast(message, type = "info") {
     document.body.appendChild(toast);
   }
 
+  const colors = {
+    info: "#334155",
+    success: "#16a34a",
+    error: "#dc2626"
+  };
+
+  toast.textContent = message;
+  toast.style.position = "fixed";
+  toast.style.right = "18px";
+  toast.style.bottom = "92px";
+  toast.style.zIndex = "9999";
+  toast.style.padding = "10px 14px";
+  toast.style.borderRadius = "999px";
+  toast.style.color = "#fff";
+  toast.style.fontSize = "13px";
+  toast.style.fontWeight = "700";
+  toast.style.background = colors[type] || colors.info;
+  toast.style.boxShadow = "0 8px 24px rgba(0,0,0,.18)";
+  toast.style.opacity = "1";
+  toast.style.transition = "opacity .2s ease";
+
+  clearTimeout(showSyncToast._timer);
+  showSyncToast._timer = setTimeout(() => {
+    toast.style.opacity = "0";
+  }, 2200);
+}
+
+function setSyncBadge(status, message = "") {
+  state.syncMeta.lastSyncStatus = status;
+  saveState(false);
+  renderFabLabels();
+
+  if (message) {
+    const type =
+      status === "failed" ? "error" :
+      status === "pulled" || status === "pushed" ? "success" :
+      "info";
+    showSyncToast(message, type);
+  }
+}
+
+async function runFloatingSync() {
+  const base = state.appSettings.gasWebAppUrl || "";
+  const token = (state.appSettings.syncToken || "").trim();
+
+  if (!base) {
+    setSyncBadge("failed", "Please save the Apps Script Web App URL first.");
+    return;
+  }
+
+  try {
+    setSyncBadge("checking", "Checking remote data...");
+    const remote = await fetchRemoteBundle();
+    if (!remote) throw new Error("Unable to fetch remote bundle.");
+
+    const remoteVersion =
+      remote.meta?.version ||
+      remote.version ||
+      "";
+
+    const localVersion =
+      state.syncMeta.lastLocalChangeAt ||
+      state.syncMeta.lastLocalSaveAt ||
+      "";
+
+    state.syncMeta.lastRemoteCheckAt = nowIso();
+    state.syncMeta.lastRemoteVersion = remoteVersion || state.syncMeta.lastRemoteVersion || "";
+    saveState(false);
+
+    if (remoteVersion && (!localVersion || remoteVersion > localVersion)) {
+      setSyncBadge("pulling", "Remote is newer. Pulling data...");
+      applyPull(remote);
+      state.syncMeta.lastRemoteSyncAt = nowIso();
+      state.syncMeta.lastSyncStatus = "pulled";
+      saveState();
+      renderFabLabels();
+      showSyncToast("Remote data pulled.", "success");
+    } else {
+      if (!token) throw new Error("Sync Token is missing.");
+
+      setSyncBadge("pushing", "Local is newer. Pushing data...");
+      await performPush();
+      state.syncMeta.lastRemoteSyncAt = nowIso();
+      state.syncMeta.lastSyncStatus = "pushed";
+      saveState();
+      renderFabLabels();
+      showSyncToast("Local data pushed.", "success");
+    }
+  } catch (err) {
+    state.syncMeta.lastSyncStatus = "failed";
+    saveState();
+    renderFabLabels();
+    showSyncToast(err.message || "Sync failed.", "error");
+  }
+
+  setTimeout(() => {
+    state.syncMeta.lastSyncStatus = "idle";
+    saveState(false);
+    renderFabLabels();
+  }, 2400);
+}
+
+function showSyncToast(message, type = "info") {
+  let toast = document.getElementById("syncToastBadge");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "syncToastBadge";
+    document.body.appendChild(toast);
+  }
+
   const palette = {
     info: "#334155",
     success: "#16a34a",
@@ -517,6 +627,17 @@ function cleanText(text) {
   return String(text || "").replace(/\s+/g, " ").trim();
 }
 
+function openPanel(panelId) {
+  els.drawerTabs.forEach(x => x.classList.remove("active"));
+  els.panels.forEach(x => x.classList.remove("active"));
+
+  const tab = els.drawerTabs.find(x => x.dataset.panel === panelId);
+  if (tab) tab.classList.add("active");
+
+  const panel = document.getElementById(panelId);
+  if (panel) panel.classList.add("active");
+}
+
 function bindEvents() {
   els.themeToggleBtn.onclick = toggleTheme;
 
@@ -613,8 +734,17 @@ function bindEvents() {
   });
 
   els.fabMainBtn.onclick = toggleFabMenu;
-  els.fabAddBtn.onclick = () => { closeFabMenu(); openToolModal(); };
-  els.fabSettingsBtn.onclick = () => { closeFabMenu(); openDrawer(); };
+els.fabAddBtn.onclick = () => { closeFabMenu(); openToolModal(); };
+els.fabSettingsBtn.onclick = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  closeFabMenu();
+
+  requestAnimationFrame(() => {
+    openDrawer();
+    openPanel("generalPanel");
+  });
+};
 els.fabSyncBtn.onclick = async () => {
   closeFabMenu();
   await runFloatingSync();
