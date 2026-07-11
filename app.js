@@ -912,12 +912,19 @@ function renderTile(tool, pinned = false, keyword = "") {
   const cat = getCategory(tool.categoryId);
   const [a, b] = gradientPair(tool.color || cat?.color || "#5b6cff");
   const showDesc = state.uiState.showDescriptions && tool.description;
+  const hasUrl = !!tool.url;
+  const editMode = state.uiState.editMode;
+  const targetAttr = (hasUrl && tool.openMode !== "same_tab")
+    ? ` target="_blank" rel="noopener noreferrer"`
+    : "";
+  const hrefAttr = hasUrl ? ` href="${escapeHtml(tool.url)}"` : "";
 
   return `
-    <button
-      class="tile ${pinned ? "pinned" : "compact"} ${state.uiState.editMode ? "edit-mode" : ""}"
+    <a
+      class="tile ${pinned ? "pinned" : "compact"} ${editMode ? "edit-mode" : ""}"
       data-id="${escapeHtml(tool.id)}"
       style="--tile-a:${escapeHtml(a)};--tile-b:${escapeHtml(b)}"
+      ${hrefAttr}${targetAttr}
     >
       <div class="tile-edit-hint">✎</div>
       <div class="tile-top">
@@ -933,18 +940,19 @@ function renderTile(tool, pinned = false, keyword = "") {
         </div>
         ${showDesc ? `<div class="tile-desc">${highlightText(tool.description, keyword)}</div>` : ``}
       </div>
-    </button>
+    </a>
   `;
 }
 
 function bindTileEvents(container) {
   container.querySelectorAll(".tile").forEach(tile => {
     const id = tile.dataset.id;
-    tile.onclick = () => {
+    tile.onclick = (e) => {
       if (state.uiState.editMode) {
+        e.preventDefault();
         openToolModal(id);
       } else {
-        openTool(id);
+        trackToolUsage(id);
       }
     };
   });
@@ -1330,7 +1338,7 @@ function deleteCurrentTool() {
   renderAll();
 }
 
-function openTool(id) {
+function trackToolUsage(id) {
   const tool = state.tools.find(t => t.id === id);
   if (!tool || !tool.url) return;
 
@@ -1338,13 +1346,6 @@ function openTool(id) {
   tool.lastUsedAt = nowIso();
   tool.updatedAt = nowIso();
   saveState();
-  renderAll();
-
-  if (tool.openMode === "same_tab") {
-    window.location.href = tool.url;
-  } else {
-    window.open(tool.url, "_blank", "noopener");
-  }
 }
 
 function togglePin(id) {
