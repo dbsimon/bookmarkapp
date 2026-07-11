@@ -10,6 +10,7 @@ const DEFAULT_DATA = {
     { id: "personal", name: "Personal", color: "#ef4444", icon: "🏠", sortOrder: 5, pinned: true, updatedAt: "" }
   ],
   appSettings: {
+    appTitle: "",
     gasWebAppUrl: "",
     syncToken: "",
     deviceName: "",
@@ -98,6 +99,8 @@ const els = {
   toolsManageList: document.getElementById("toolsManageList"),
   categoriesManageList: document.getElementById("categoriesManageList"),
 
+  dashboardTitleInput: document.getElementById("dashboardTitleInput"),
+  pageTitle: document.getElementById("pageTitle"),
   deviceNameInput: document.getElementById("deviceNameInput"),
   openModeInput: document.getElementById("openModeInput"),
   remoteCheckInput: document.getElementById("remoteCheckInput"),
@@ -363,6 +366,7 @@ function init() {
   initTheme();
   bindEvents();
   fillSettings();
+  applyAppTitle();
   renderAll();
   if (state.appSettings.checkRemoteOnLoad && state.appSettings.gasWebAppUrl) {
     lightweightRemoteCheck();
@@ -795,6 +799,7 @@ function ensureStateShape() {
   state.syncMeta ||= {};
   state.linkPreviewCache ||= {};
 
+  state.appSettings.appTitle ||= "";
   state.appSettings.openLinksDefault ||= "new_tab";
   state.appSettings.syncToken ||= "";
   state.appSettings.checkRemoteOnLoad = state.appSettings.checkRemoteOnLoad !== false;
@@ -1088,6 +1093,7 @@ function renderToolCategoryOptions() {
 }
 
 function fillSettings() {
+  els.dashboardTitleInput.value = state.appSettings.appTitle || "";
   els.deviceNameInput.value = state.appSettings.deviceName || "";
   els.openModeInput.value = state.appSettings.openLinksDefault || "new_tab";
   els.remoteCheckInput.checked = state.appSettings.checkRemoteOnLoad !== false;
@@ -1436,12 +1442,20 @@ function deleteCategory(id) {
 }
 
 function saveGeneralSettings() {
+  state.appSettings.appTitle = els.dashboardTitleInput.value.trim();
   state.appSettings.deviceName = els.deviceNameInput.value.trim();
   state.appSettings.openLinksDefault = els.openModeInput.value;
   state.appSettings.checkRemoteOnLoad = els.remoteCheckInput.checked;
   saveState();
+  applyAppTitle();
   renderAll();
   alert("General settings saved.");
+}
+
+function applyAppTitle() {
+  const title = state.appSettings.appTitle?.trim() || "My Tools Hub";
+  document.title = title;
+  els.pageTitle.textContent = title;
 }
 
 function saveSyncConfig() {
